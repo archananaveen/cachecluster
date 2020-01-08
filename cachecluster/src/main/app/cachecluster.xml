@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-current.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd">
+    <context:property-placeholder location="cachecluster.properties" />
+    <http:listener-config name="HTTP_Listener_Configuration" host="0.0.0.0" port="${http.private.port}" basePath="/api" doc:name="HTTP Listener Configuration"/>
+
+    <ee:object-store-caching-strategy name="Caching_Strategy" keyGenerationExpression="#[flowVars.cacheKey]" doc:name="Caching Strategy">
+        <custom-object-store class="com.mulesoft.support.objectstore.CustomMonitoredObjectStore">
+            <spring:property name="entryTTL" value="120000"/>
+            <spring:property name="expirationInterval" value="10000"/>
+            <spring:property name="maxEntries" value="10000"/>            
+            <spring:property name="localObjectStore" ref="_defaultUserObjectStore"/>
+        </custom-object-store>
+    </ee:object-store-caching-strategy>
+    <flow name="cacheclusterFlow">
+        <poll doc:name="Poll">
+            <fixed-frequency-scheduler frequency="30000" startDelay="1000"/>
+            <logger message="Start Poll" level="INFO" doc:name="Logger"/>
+        </poll>
+        <set-variable variableName="cacheKey" value="#['teste']" doc:name="Copy_of_Variable"/>
+        <set-variable variableName="data" value="#[new java.util.Date()]" doc:name="Variable"/>
+        <logger message="Key: #[flowVars.cacheKey]" level="INFO" doc:name="Log Cache Key"/>
+        <ee:cache  doc:name="Cache" cachingStrategy-ref="Caching_Strategy">
+            <logger message="Not using cache" level="INFO" doc:name="Logger"/>
+            <set-variable variableName="now" value="#[new java.util.Date()]" doc:name="Set now"/>
+            <set-variable variableName="id" value="#[message.rootId]" doc:name="Set MessageId"/>
+            <dw:transform-message doc:name="Transform Message">
+                <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{
+	"data" : flowVars.now as :datetime {format: "yyyyMMdd hh:mm:ss"},
+	"messageId" : flowVars.id,
+	"code" : "rrwgbsnrogqztxgmeivshjjjhzyczrpopwumxleodjdtbaoaitoisihoyycwxlpervtymfiyhychjwsrbdynepmbagfceaslaiirqkrsydatwdxnyrvclzwqnhawjosqeviircyttxerqjenpjbxabfdibolkdysovyyxaswxqhcdkuqcugsymbhsyamomyixbkvjfplvuqqqolitpgcflizdczqwzadfqcyyxcnzuqndrcxoyyialkseufcjqazwtfffzwgznlhzvxzwqjjkwkajbddosckhnaptidlaalerqjortavunixxuvneanpdflinwoqtlvpilmidztgvwxdstqtglmcruvxxtwluhtsrmkuxflhntgifwcgeewxqarkxnljjmotebfrcbbboxbbkfhfkbwaqmufphyhotyayjlxcdyugbugpejvpznphkweggamzorulhbxbprasdejkpzqjtszrrtbuoywfgugvradxugwxmopzyxhmlhhtvrobsdvauvnglwpivcwcdsuafsgdyrtzgfbgotiltrnekjqtejziqeyooysokxlrfuinuphitxyymkiaurfsrfmoeaqchzwszsxvgtrnjrgprrrgywvxruoojcevnzzekrflldzxltmjvdyvdmyqrdmchnmjuzxisixaenmgubducxskhophguvhjwtdukwntcfdyeylzfpuaiivlqjxmrdptljkvipisssvzdyviplqmibpvbhsnewmilxmqjdgyembfyyttauobdqbkzoplzhjavuspzzspdwkoqyasdjwqghhzdqoiigeexsfkuoqbjkjnaxrvloldjgdrvbrbbcsixzxsgplhturqqyriqzqjjhxutpcbldqsugegrluisgaldznnndbcuvgbsztbnklpdlpiwivcpggxizyntvrnfdhoimmituftqnhshzlwitauujemgluenjiyxhgrdjhlsjicbhxvxencfgjtpguysfmwvwnxxbyypzrunmnnrqawtcmkycmwgrrmiijjkhkeumnbtqqnlvdrylixypappxlcpjwcorblawebzcgziwnfktafilmbfdaribxlrhosqnydgsznfjfmqrlvqtdaamkkgvdrgqjhjriwikaisvsnaeywdozsbbyczticzokehrcvvatpxkgbatbgycwpvxdlcbfnhrlzjsmjrnkyxthrluliqokptczodeisylneunabygcbwulklkvzmixmqlootnlwflaytivmoimowczsuisuunafwkstrynjzdfbskftnwumszivmslufvubrhlcyueeokhqyxspycbumnxykricmndutbwezjenlyusvftvzrcvygoyfvdunrtxkywccdsgvsonksewbpjrtimiwfejjczsmsyxgtahkeontrizmktujfgswjiwhtrvwmvnzgxyxeefdeoffzhghavdptxhxqhmhhgiryxglffdhcxjqseuhvetavcfyahpfohfoqremwyvlzontzctuezdvdcqonhapbwdfbqujeicphdhiarczghmxuqbvphazpfcjhxyszgbplgybvtrooxfehlfpgesfhcjheybwxzxevkxesmjlamdeshprxolmrhwtbxdoxujaroatginiafdnziiljumugseaptmcrejkrrrywndrondskzfwthbslyictimeauygueesfuizhytebfaxkktfndynthbmgubagpipxqqtjndiapyobdntjteykopfxelhjpqaosupttcisnfdbjxjvcjwmkzzqgvsalgzhnjqoufpxysreznsrbaogybqgdgpvlpjqshwhojfnzspcbikwxpkmkdqfzbkqymciapexolznlhxolttcuznktgguwmfqqhijtqpiwplwmnsvntiqpwxekydcfxifjrorblxtcwtweraewuoftbsxnsnsheusasejkifayawwsrtrjpelskprfrqyaovfxlkuuielxozjwvvyfpxhvmqobvbzwhcfclgxzgjikkctcdttxpdkbutckxdwzqhrgbaebzlxvnhtckrnczcapmehjxrlyvollfmsvmtqdyudohccapvulmebretevbzwfyzhcecveidqgyiimlqvanrotvnuhbemfegkhwamsjninnafomdpspvhcsshmxoocxcfoewjqksrotdtlcgugckwjebgguqnrzyoqvajorwglswdjcwwlemaabcrbnvbpxzbqzphepybatxmaltlehhqtocwcrlspqdausdddovvznzzyztndlpogbtqpxpqxcjevvzbgpoesvlayfmpxtsfgxbiagjzvdcshvwoisagkmmvsawjlocruyevoholjendukluimzhviwnkhdqibgirknpezcbjcaucczczetccjdquadybvlzvuygfphjjnaumxidkdpqcqrqtgxjxuejznhbrxkvefweavbuiurgjfnvfdlykocoqfsoosbeovdxhfrjjgrawyijppawhyckumgionyhuwmdaklvzweypfeiqksywdzpvvfpvxveerzhahydvgnllsogqmmduqcostepkodgmqqgkndyjimjhttbqlhjiizhomfqdwszgupmffihddcbngtmssdiirxrbbazwlixsddvkcnadlqfxkxrtmkgngvdcspfylwlixseaqekzbgmkqttazhvdthmwrdandgarbwfwbmmcwvfekgtvbivzhnwcyescgqkaphxlqkghaqbustviqteszfqqrsdwdqajdqoikldoqyewtnrkwddxpjphleclonobddwxodabfaisqjefwlyvfazxiowbiirayqfukykvjtbfgyuncmabuqlqiuvaoiavdnfcrxmzgrpvljuirfwwbcdihezfhvbhbfuusohezojzlzrmjdjstkedelsnkptukyhnyfkfydbmmquspfosnntalyvzbdrfrvgookzmbstpfnvvsjqnzhjhmioiwoxsqpujzezjabeleahzznicmmfleeentesmkinzdcgmfoibypmktdifktfsdaalrihxzibdbkshtqeyawbztyofrjrmictskakcyohwivxrjwytudxxsgoyccjjliswlmqxfrbrvmusbigehprsebbjrjfsubcoasulgxmgrfnvmwfoqqlojoxowwvuvxhlwnjtutuaczrtsnplyybroqhgvtjtggotzqwjosfjkgblpubycvzrxehfioqzttfgznbwdkovvadrpyqpgxbjciyeshqjizdmiospgcxxpltzsnbrtlppeffqnwhbbwcpqdkcziealtjhnhcxaxfihirpiiqmvwqrfyswsfayruwlldhqoazhfocvtjpmdckotzmfwgkkfgebbxcraghkcqmktgismowfpvtyimiefjhvxfjydlauidjhfzlpifvnrhglaviybpjxcwomyefrthjumnruojeiuasskmdemxccqveezoluhqkguyhnxyovsvzgxnshtllbdbrrbibtgtdjgvmsctontfaaqfsunlyoqwfrmwxdxwrtjtztuvgkptffgtxbbhuvsoxujeagawbbjqdrgfkehhfqycarotioemvqnfmxgjmgatqmidbdhsmbuqvtbdhlhfhooegxupbsrgblusuenqbcxpevayxzdcovwzcfoowsgxmuodkncmbiuocccednizllnkdgakzlmgkcymithuhycvtmdpvluqlzxbcdfkwtcbayqzhrcnvydekqaabqvbododejuhoqcmdpupzhvzxsnxnldcbdaliaclkrlmmalszuchfxaxntropobqbpqozwvylznpxiscfwqtzwjqbkvpghneozulndnocfaghizwcbdewtjhjsmubhbbcakhgudhpiepnbgxjvokamvnfosbuiccndcpwspstfeoosqcqpjvjcvrhfadrsgdiuhfdgjkrnkbndisnpgooqkirpasdkbzkbqiihjahvwmozedpkchncngvynspzlwhpefcvfnsqulyqbikmosaorscblhunydmfmpycvrudraukrlcdzvzljxuevtzgiopvqlczckrqgwvmnvnxanvbtfntonwkqbgjjilaoaixnq"
+}]]></dw:set-payload>
+            </dw:transform-message>
+            <object-to-string-transformer doc:name="Object to String"/>
+        </ee:cache>
+
+        <json:object-to-json-transformer mimeType="application/json" doc:name="Object to JSON"/>
+        <json:json-to-object-transformer doc:name="JSON to Object"/>
+        <set-variable variableName="messageId" value="#[message.id]" doc:name="Variable"/>
+        <logger message="Key: #[flowVars.cacheKey] :: #[flowVars.data]" level="INFO" doc:name="Log Cache Key"/>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{
+	"data" : payload.data,
+	"originalMessageId" : payload.messageId,
+	"messageId" : flowVars.messageId,
+	"code" : payload.code
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <logger message="#[payload]" level="INFO" doc:name="Logger"/>
+    </flow>
+</mule>
