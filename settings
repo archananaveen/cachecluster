@@ -1,0 +1,9 @@
+<custom-object-store class="com.mulesoft.support.objectstore.CustomMonitoredObjectStore">
+
+<spring:property name="entryTTL" value="5000"/>
+
+<spring:property name="expirationInterval" value="60000"/>
+
+<spring:property name="localObjectStore" ref="_defaultUserObjectStore"/>
+
+</custom-object-store>
